@@ -1,0 +1,41 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n\ninterface AggregatorV3Interface {\n  function decimals() external view returns (uint8);\n\n  function description() external view returns (string memory);\n\n  function version() external view returns (uint256);\n\n  function getRoundData(\n    uint80 _roundId\n  ) external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);\n\n  function latestRoundData()\n    external\n    view\n    returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);\n}\n"
+    },
+    "contracts/FundMe.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n\n// import\nimport \"@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol\";\nimport \"./PriceConverter.sol\";\n\n// error\nerror FundMe_NotOwner();\nerror FundMe_NotEnough();\nerror FundMe_WithdrawFail();\n\n/**\n * @title simple funding contract\n * @author KC\n * @notice this contract receives funding and allowing contract owner to withdraw funds\n * @dev this contract implements price feed from the chainlink library\n */\ncontract FundMe {\n    // type declaration\n    using PriceConverter for uint256;\n\n    // state variable\n    address public immutable i_owner;\n    AggregatorV3Interface public s_priceFeed;\n    uint256 public constant MIN_USD = 50 * 1e18; // additional 18 digits to handle decimals\n    address[] public s_funders;\n    mapping(address => uint256) public s_addressToAmountFunded;\n\n    // modifier\n    modifier owner() {\n        if (msg.sender != i_owner) revert FundMe_NotOwner();\n        _;\n    }\n\n    // special function\n    constructor(address priceFeed) {\n        i_owner = msg.sender;\n        s_priceFeed = AggregatorV3Interface(priceFeed);\n    }\n\n    receive() external payable {\n        fund();\n    }\n\n    fallback() external payable {\n        fund();\n    }\n\n    // main function\n    function fund() public payable {\n        // check min price\n        // if (msg.value.getConversionRate(s_priceFeed) < MIN_USD)\n        //     revert FundMe_NotEnough();\n\n        // push to funder array and add to mappings\n        s_funders.push(msg.sender);\n        s_addressToAmountFunded[msg.sender] = msg.value;\n    }\n\n    function withdraw() public owner {\n        address[] memory funders = s_funders; // gas optimization by assigning local variable\n\n        // clear amount funded\n        for (uint256 i = 0; i < funders.length; i++) {\n            s_addressToAmountFunded[funders[i]] = 0;\n        }\n\n        // clear funders\n        s_funders = new address[](0);\n\n        // withdraw fund to contract owner\n        (bool success, ) = i_owner.call{value: address(this).balance}(\"\");\n        if (!success) revert FundMe_WithdrawFail();\n    }\n\n    // getter function\n    function getAddressToAmountFunded(\n        address fundingAddress\n    ) public view returns (uint256) {\n        return s_addressToAmountFunded[fundingAddress];\n    }\n\n    function getPriceFeed() public view returns (AggregatorV3Interface) {\n        return s_priceFeed;\n    }\n\n    function getFunder(uint256 index) public view returns (address) {\n        return s_funders[index];\n    }\n\n    function getOwner() public view returns (address) {\n        return i_owner;\n    }\n}\n"
+    },
+    "contracts/PriceConverter.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n\nimport \"@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol\";\n\nlibrary PriceConverter {\n    function getConversionRate(\n        uint256 amount,\n        AggregatorV3Interface priceFeed\n    ) internal view returns (uint256) {\n        // get eth price rate (in USD)\n        (, int256 answer, , , ) = priceFeed.latestRoundData();\n        uint256 ethPrice = uint256(answer * 1e10);\n\n        // convert amount\n        uint256 ethAmountInUsd = (amount * ethPrice) / 1e18; // amount is in wei\n        return ethAmountInUsd;\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": false,
+      "runs": 200
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "devdoc",
+          "userdoc",
+          "storageLayout",
+          "evm.gasEstimates"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    },
+    "metadata": {
+      "useLiteralContent": true
+    }
+  }
+}

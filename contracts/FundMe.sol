@@ -50,8 +50,8 @@ contract FundMe {
     // main function
     function fund() public payable {
         // check min price
-        if (msg.value.getConversionRate(s_priceFeed) < MIN_USD)
-            revert FundMe_NotEnough();
+        // if (msg.value.getConversionRate(s_priceFeed) < MIN_USD)
+        //     revert FundMe_NotEnough();
 
         // push to funder array and add to mappings
         s_funders.push(msg.sender);
